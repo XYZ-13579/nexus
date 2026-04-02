@@ -1,6 +1,6 @@
 // --- Physics & Navigation ---
 
-function findPath(start, end) {
+function findPath(start, end, isEnemy = false) {
     const queue = [];
     const visited = new Set();
     const cameFrom = new Map();
@@ -12,7 +12,11 @@ function findPath(start, end) {
     if (!startCell || !endCell) return [];
     if (startCell.i === endCell.i && startCell.j === endCell.j) return [];
 
-    const isPassable = (type) => type === 0 || type === 2; // None or Door
+    const isPassable = (type) => {
+        if (type === 0) return true;
+        if (type === 2) return isEnemy ? envParams.enemyCanPassDoors : true;
+        return false;
+    };
     const isConnected = (a, b) => {
         if (!a || !b) return false;
         const di = b.i - a.i;
@@ -61,7 +65,7 @@ function rectIntersect(ax1, ay1, ax2, ay2, bx1, by1, bx2, by2) {
     return ax1 < bx2 && ax2 > bx1 && ay1 < by2 && ay2 > by1;
 }
 
-function isColliding(x, z, r) {
+function isColliding(x, z, r, isEnemy = false) {
     const ix = Math.floor((x + cols * w / 2) / w);
     const jz = Math.floor((z + rows * w / 2) / w);
     
@@ -81,7 +85,11 @@ function isColliding(x, z, r) {
             const hwt = wt / 2;
             const hw = w / 2;
 
-            const isSolid = (type) => type !== 0 && type !== 2; // Passable only if None or Yellow Door
+            const isSolid = (type) => {
+                if (type === 0) return false;
+                if (type === 2) return isEnemy ? !envParams.enemyCanPassDoors : false;
+                return true;
+            };
 
             if (isSolid(cell.walls[0]) && rectIntersect(x - r, z - r, x + r, z + r, cx - hw - hwt, cz - hw - hwt, cx + hw + hwt, cz - hw + hwt)) return true;
             if (isSolid(cell.walls[1]) && rectIntersect(x - r, z - r, x + r, z + r, cx + hw - hwt, cz - hw - hwt, cx + hw + hwt, cz + hw + hwt)) return true;
