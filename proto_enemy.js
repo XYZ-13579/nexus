@@ -162,7 +162,7 @@ class Enemy {
 
                 if (this.state === 'CHASE') {
                     if (this.path.length === 0 || this.pathTimer <= 0) {
-                        this.path = findPath(this, { i: playerCellI, j: playerCellJ });
+                        this.path = findPath(this, { i: playerCellI, j: playerCellJ }, true);
                         if (this.path.length > 0 && this.path[0].i === this.i && this.path[0].j === this.j) this.path.shift();
                         this.pathTimer = 1.0;
                     }
@@ -170,7 +170,11 @@ class Enemy {
                     const currentCell = grid[index(this.i, this.j)];
                     const available = [];
                     if (currentCell) {
-                        const isPassable = (type) => type === 0 || type === 2;
+                        const isPassable = (type) => {
+                            if (type === 0) return true;
+                            if (type === 2) return envParams.enemyCanPassDoors;
+                            return false;
+                        };
                         if (isPassable(currentCell.walls[0]) && index(this.i, this.j - 1) !== -1) available.push(grid[index(this.i, this.j - 1)]);
                         if (isPassable(currentCell.walls[1]) && index(this.i + 1, this.j) !== -1) available.push(grid[index(this.i + 1, this.j)]);
                         if (isPassable(currentCell.walls[2]) && index(this.i, this.j + 1) !== -1) available.push(grid[index(this.i, this.j + 1)]);
@@ -201,13 +205,13 @@ class Enemy {
                     const nextX = this.mesh.position.x + vx;
                     const nextZ = this.mesh.position.z + vz;
 
-                    if (!isColliding(nextX, nextZ, this.radius)) {
+                    if (!isColliding(nextX, nextZ, this.radius, true)) {
                         this.mesh.position.x = nextX;
                         this.mesh.position.z = nextZ;
                     } else {
                         // Slide
-                        if (!isColliding(nextX, this.mesh.position.z, this.radius)) this.mesh.position.x = nextX;
-                        else if (!isColliding(this.mesh.position.x, nextZ, this.radius)) this.mesh.position.z = nextZ;
+                        if (!isColliding(nextX, this.mesh.position.z, this.radius, true)) this.mesh.position.x = nextX;
+                        else if (!isColliding(this.mesh.position.x, nextZ, this.radius, true)) this.mesh.position.z = nextZ;
                     }
 
                     // Update internal cell index and progress based on new position
