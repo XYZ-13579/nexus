@@ -1,409 +1,736 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Maze Generator 3D - Realistic Edition</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexus Engine - WebGPU Edition</title>
+  <style>
+    :root {
+      --bg-color: #111;
+      --panel-bg: #222;
+      --text-color: #eee;
+      --accent: #0f0;
+      --accent-hover: #ffffff;
+    }
 
-        body {
-            overflow: hidden;
-            background-color: black;
-            font-family: sans-serif;
-        }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
-        #webgl-container {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 1;
-        }
+    body {
+      overflow: hidden;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      display: flex;
+      flex-direction: column;
+      width: 100vw;
+      height: 100vh;
+    }
 
-        #minimap-container {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            width: 250px;
-            height: 250px;
-            z-index: 2;
-            border: 3px solid #333;
-            border-radius: 5px;
-            background-color: black;
-            pointer-events: none;
-        }
+    #toolbar {
+      height: 50px;
+      background-color: var(--panel-bg);
+      border-bottom: 2px solid #0f0;
+      display: flex;
+      align-items: center;
+      padding: 0 15px;
+      justify-content: space-between;
+      z-index: 10;
+    }
 
-        canvas#minimap {
-            display: block;
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-        }
+    .btn {
+      background-color: #333;
+      color: var(--text-color);
+      border: 1px solid #555;
+      padding: 6px 12px;
+      cursor: pointer;
+      border-radius: 4px;
+      font-weight: bold;
+      transition: all 0.2s;
+      margin-right: 5px;
+    }
 
-        #blocker {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.7);
-            z-index: 10;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            cursor: pointer;
-            flex-direction: column;
-            text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.8);
-        }
+    .btn:hover {
+      background-color: var(--accent);
+      color: #000;
+    }
 
-        #crosshair {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 10px;
-            height: 10px;
-            background-color: #33ff00;
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 5;
-            display: none;
-            mix-blend-mode: difference;
-            pointer-events: none;
-        }
+    .btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
 
-        /* オプションパネルのスタイル */
-        #options-container {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            z-index: 30;
-            /* Blockerより上に表示 */
-        }
+    .btn.active {
+      background-color: var(--accent);
+      color: #000;
+    }
 
-        #options-btn {
-            padding: 10px 15px;
-            font-size: 16px;
-            cursor: pointer;
-            background: #222;
-            color: #0f0;
-            border: 2px solid #0f0;
-            border-radius: 5px;
-            font-weight: bold;
-            box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
-            transition: all 0.2s;
-        }
+    #main-container {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
 
-        #options-btn:hover {
-            background: #0f0;
-            color: #000;
-        }
+    .sidebar {
+      width: 280px;
+      background-color: var(--panel-bg);
+      padding: 15px;
+      overflow-y: auto;
+      border-right: 1px solid #444;
+      border-left: 1px solid #444;
+      z-index: 10;
+    }
 
-        #options-panel {
-            margin-top: 10px;
-            background: rgba(0, 0, 0, 0.85);
-            color: white;
-            padding: 15px;
-            border-radius: 5px;
-            border: 1px solid #0f0;
-            display: none;
-            box-shadow: 0 0 15px rgba(0, 0, 0, 0.8);
-        }
+    #canvas-container {
+      flex: 1;
+      position: relative;
+      background: #000;
+      overflow: hidden;
+    }
 
-        .slider-container {
-            margin-bottom: 15px;
-        }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
 
-        .slider-title {
-            display: block;
-            margin-bottom: 5px;
-            font-size: 14px;
-            color: #eee;
-        }
+    /* Gameplay Overlays */
+    #crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 10px;
+      height: 10px;
+      background-color: #3f0;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 5;
+      display: none;
+      mix-blend-mode: difference;
+      pointer-events: none;
+    }
 
-        input[type="range"] {
-            width: 150px;
-            cursor: pointer;
+    #blocker {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #0f0;
+      flex-direction: column;
+      cursor: pointer;
+      display: none;
+      /* hidden in edit mode */
+      text-shadow: 0 0 10px #0f0;
+    }
 
-        }
+    #damage-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 900;
+      pointer-events: none;
+      background: radial-gradient(circle, transparent 20%, rgba(255, 0, 0, 0.6) 100%);
+      opacity: 0;
+      transition: opacity 0.1s;
+    }
 
+    #health-hud {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      padding: 10px 20px;
+      background: rgba(0, 0, 0, 0.7);
+      color: #0f0;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 24px;
+      border: 2px solid #0f0;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      z-index: 50;
+      display: none;
+      /* Only show in Explore */
+    }
 
-        #damage-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: 1000;
-            pointer-events: none;
-            background: radial-gradient(circle, transparent 20%, rgba(255, 0, 0, 0.4) 100%);
-            opacity: 0;
-            transition: opacity 0.1s;
-        }
+    #death-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.95);
+      color: #ff0000;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      font-family: 'Courier New', Courier, monospace;
+      text-align: center;
+    }
 
-        /* New HUD Elements */
-        #health-hud {
-            position: fixed;
-            bottom: 20px;
-            left: 20px;
-            padding: 10px 20px;
-            background: rgba(0, 0, 0, 0.7);
-            color: #ff0000;
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 24px;
-            border: 2px solid #ff0000;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            z-index: 50;
-        }
+    #death-screen h1 {
+      font-size: 64px;
+      margin-bottom: 20px;
+      text-shadow: 0 0 20px #ff0000;
+    }
 
-        #death-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            background: rgba(0, 0, 0, 0.95);
-            color: #770000;
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 2000;
-            font-family: 'Courier New', Courier, monospace;
-            text-align: center;
-        }
+    #weapon-idle-overlay,
+    #attack-flash-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
 
-        #death-screen h1 {
-            font-size: 64px;
-            margin-bottom: 20px;
-            text-shadow: 0 0 20px #ff0000;
-        }
+    #weapon-idle-overlay {
+      z-index: 100;
+    }
 
-        #death-screen button {
-            background: transparent;
-            color: #ff0000;
-            border: 2px solid #ff0000;
-            padding: 15px 40px;
-            font-size: 24px;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-transform: uppercase;
-        }
+    #attack-flash-overlay {
+      z-index: 150;
+    }
 
-        #death-screen button:hover {
-            background: #ff0000;
-            color: #000;
-            box-shadow: 0 0 30px #ff0000;
-        }
+    #weapon-idle-overlay img,
+    #attack-flash-overlay img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
 
-        /* 武器オーバーレイ（Snapshot_1.PNG / Snapshot.PNG）のスタイル */
-        #weapon-idle-overlay,
-        #attack-flash-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            pointer-events: none;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            background-color: transparent;
-        }
+    /* Sidebar Panels */
+    .panel-block {
+      margin-bottom: 20px;
+    }
 
-        #weapon-idle-overlay {
-            z-index: 100;
-        }
+    .panel-block h3 {
+      margin-top: 0;
+      border-bottom: 1px solid #444;
+      padding-bottom: 5px;
+      font-size: 14px;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
 
-        #attack-flash-overlay {
-            z-index: 150;
-        }
+    .item-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
 
-        #weapon-idle-overlay img,
-        #attack-flash-overlay img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
+    .item-btn {
+      width: 48%;
+      background: #333;
+      border: 1px solid #555;
+      color: #ccc;
+      padding: 8px 0;
+      text-align: center;
+      cursor: pointer;
+      border-radius: 4px;
+      font-size: 12px;
+    }
 
-        @keyframes dynamic-pulse {
-            from {
-                filter: contrast(1.2) brightness(1.0) hue-rotate(0deg);
+    .item-btn:hover {
+      border-color: var(--accent);
+      color: white;
+    }
+
+    .item-btn.active {
+      background: var(--accent);
+      color: black;
+      font-weight: bold;
+    }
+
+    .prop-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .prop-row input[type="number"],
+    .prop-row input[type="color"],
+    .prop-row select {
+      width: 100px;
+      background: #333;
+      border: 1px solid #555;
+      color: white;
+      padding: 4px;
+    }
+
+    .prop-row input[type="range"] {
+      width: 100px;
+    }
+
+    /* Modal for Asset Manager */
+    #asset-modal {
+      position: fixed;
+      top: 50px;
+      left: 10vw;
+      width: 80vw;
+      height: calc(100vh - 100px);
+      background: rgba(30, 30, 30, 0.95);
+      border: 2px solid var(--accent);
+      z-index: 2000;
+      display: none;
+      flex-direction: column;
+      padding: 20px;
+      box-shadow: 0 0 30px rgba(0, 255, 0, 0.2);
+    }
+
+    #asset-modal-close {
+      position: absolute;
+      top: 10px;
+      right: 15px;
+      cursor: pointer;
+      font-size: 24px;
+      color: red;
+      font-weight: bold;
+    }
+
+    .asset-categories {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid #555;
+      padding-bottom: 10px;
+    }
+
+    .asset-tab {
+      padding: 8px 15px;
+      background: #444;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+
+    .asset-tab.active {
+      background: var(--accent);
+      color: black;
+      font-weight: bold;
+    }
+
+    #asset-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 15px;
+      overflow-y: auto;
+      flex: 1;
+      margin-bottom: 20px;
+    }
+
+    .asset-item {
+      background: #222;
+      border: 1px solid #555;
+      padding: 10px;
+      text-align: center;
+      border-radius: 5px;
+      position: relative;
+    }
+
+    .asset-item img {
+      max-width: 100%;
+      max-height: 80px;
+      display: block;
+      margin: 0 auto 10px;
+    }
+
+    .asset-item .delete-btn {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      background: red;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      padding: 2px 5px;
+    }
+
+    #asset-upload-area {
+      border: 2px dashed #666;
+      padding: 20px;
+      text-align: center;
+      background: #111;
+      cursor: pointer;
+    }
+
+    body.mode-play .sidebar {
+      display: none;
+    }
+
+    body.mode-play #toolbar-left {
+      visibility: hidden;
+    }
+
+    body.mode-play #health-hud {
+      display: block;
+    }
+  </style>
+  <!-- Import Map for Three.js WebGPU -->
+  <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.182.0/build/three.webgpu.js",
+                "three/webgpu": "https://unpkg.com/three@0.182.0/build/three.webgpu.js",
+                "three/tsl": "https://unpkg.com/three@0.182.0/build/three.tsl.js",
+                "three/addons/": "https://unpkg.com/three@0.182.0/examples/jsm/"
             }
-
-            to {
-                filter: contrast(1.8) brightness(1.4) hue-rotate(30deg);
-            }
         }
-    </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    </script>
 </head>
 
 <body>
 
-    <div id="damage-overlay"></div>
-    <div id="health-hud">HP: 100</div>
-    <div id="death-screen">
-        <h1>YOU DIED</h1>
-        <p style="margin-bottom: 40px;">あなたはクリーチャーに追い詰められました。</p>
-        <button onclick="retryGame()">再挑戦</button>
+  <div id="toolbar">
+    <div id="toolbar-left" style="display:flex; align-items:center;">
+      <button class="btn" id="btn-asset-manager">Asset Manager</button>
+      <div style="width:1px; height:20px; background:#555; margin:0 10px;"></div>
+      <button class="btn" id="btn-save">Save JSON</button>
+      <button class="btn" id="btn-load">Load JSON</button>
+      <button class="btn" id="btn-undo">Undo</button>
+      <button class="btn" id="btn-redo">Redo</button>
+      <button class="btn" id="btn-clear" style="background:#522">Clear Data</button>
+      <span style="margin-left:15px; font-size:12px; color:#aaa;" id="stats-info">Lights: 0 | Props: 0</span>
     </div>
-    <div id="weapon-idle-overlay">
-        <img src="Snapshot_1.PNG" alt="Idle Weapon">
+    <div style="font-weight: bold; font-size: 18px; color: var(--accent);text-shadow: 0 0 5px #0f0;">NEXUS ENGINE</div>
+    <div>
+      <button class="btn active" id="mode-edit">Editor Mode</button>
+      <button class="btn" id="mode-play">Explore Mode</button>
     </div>
-    <div id="attack-flash-overlay">
-        <img src="Snapshot.PNG" alt="Attack Flash">
-    </div>
+  </div>
 
-    <div id="options-container">
-        <button id="options-btn">⚙</button>
-        <div id="options-panel">
-            <div class="slider-container">
-                <span class="slider-title">マスター音量 (Master)</span>
-                <input type="range" id="vol-master" min="0" max="1" step="0.01" value="0.5">
-            </div>
-            <div class="slider-container">
-                <span class="slider-title">銃声 (Gunshot)</span>
-                <input type="range" id="vol-gunshot" min="0" max="1" step="0.01" value="1">
-            </div>
-            <div class="slider-container">
-                <span class="slider-title">足音 (Footsteps)</span>
-                <input type="range" id="vol-footsteps" min="0" max="3" step="0.01" value="3.0">
-            </div>
-            <div class="slider-container" style="margin-bottom: 0;">
-                <span class="slider-title">効果音 (SFX / Voice)</span>
-                <input type="range" id="vol-sfx" min="0" max="1" step="0.01" value="0.1">
-            </div>
+  <!-- Gameplay Overlay Elements -->
+  <div id="damage-overlay"></div>
+  <div id="health-hud">HP: 100</div>
+  <div id="death-screen">
+    <h1>YOU DIED</h1>
+    <p style="margin-bottom: 40px; font-size: 24px;">The Backrooms claimed another soul...</p>
+    <button class="btn" id="btn-retry" style="font-size:24px; padding: 15px 40px;">RESURRECT</button>
+  </div>
+  <div id="weapon-idle-overlay"><img src="Snapshot_1.PNG" id="weapon-idle-img" alt="Idle Weapon"
+      onerror="this.style.display='none'"></div>
+  <div id="attack-flash-overlay"><img src="Snapshot.PNG" id="weapon-attack-img" alt="Attack Flash"
+      onerror="this.style.display='none'"></div>
+
+
+  <div id="main-container">
+    <!-- Left Sidebar: Object Library -->
+    <div class="sidebar" id="library-panel">
+      <div class="panel-block">
+        <h3>Architecture</h3>
+        <div class="item-list">
+          <div class="item-btn" data-type="wall">Wall</div>
+          <div class="item-btn" data-type="pillar">Pillar</div>
+          <div class="item-btn" data-type="floor">Floor</div>
+          <div class="item-btn" data-type="ceiling">Ceiling</div>
+          <div class="item-btn" data-type="stair">Stairs</div>
         </div>
-    </div>
-
-    <div id="blocker">
-        <h1></h1>
-        <p style="font-size: 1.2em; margin-top: 10px;">画面をクリックしてスタート</p>
-        <p style="margin-top: 20px; font-size: 0.9em; opacity: 0.8;">[W][A][S][D] か 矢印キー で移動</p>
-        <p style="margin-top: 5px; font-size: 0.9em; opacity: 0.8;">マウス で視点移動 / マウスホイールで高さ調整</p>
-        <p style="margin-top: 5px; font-size: 0.9em; opacity: 0.8;">[Space] で自動探索 / 解除 （自動探索中も視点移動可能）</p>
-        <p style="margin-top: 15px; font-size: 0.8em; opacity: 0.6;">[ESC] を押すとカーソルロックを解除して左上のオプションを選べます</p>
-    </div>
-    <div id="crosshair"></div>
-    <div id="edit-mode-btn" style="position: fixed; top: 10px; right: 280px; z-index: 50; padding: 10px; background: #333; color: #fff; border: 2px solid #0f0; border-radius: 5px; cursor: pointer; font-weight: bold;">
-        EDIT MODE
-    </div>
-
-    <!-- Editor UI Overlay -->
-    <div id="editor-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(20,20,20,0.9); z-index: 200; overflow-y: auto; padding: 20px; box-sizing: border-box; color: #fff; font-family: monospace;">
-        <div style="display: flex; gap: 30px; flex-wrap: wrap; justify-content: center;">
-            <div>
-                <h2 style="color: #0f0; margin-bottom: 10px;">2D GRID EDITOR</h2>
-                <canvas id="editor-canvas" width="600" height="600" style="background: #000; border: 2px solid #555; cursor: crosshair;"></canvas>
-            </div>
-            
-            <div style="width: 300px;">
-                <h3 style="border-bottom: 1px solid #444; padding-bottom: 5px;">TOOLS</h3>
-                <div id="editor-tools" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
-                    <button class="tool-btn active" data-tool="wall">WALL (Edge)</button>
-                    <button class="tool-btn" data-tool="door">DOOR (Edge)</button>
-                    <button class="tool-btn" data-tool="window">WINDOW (Edge)</button>
-                    <button class="tool-btn" data-tool="room">ROOM (Drag)</button>
-                    <button class="tool-btn" data-tool="maze">MAZE (Drag)</button>
-                    <button class="tool-btn" data-tool="eraser">ERASER</button>
-                    <button class="tool-btn" data-tool="player">PLAYER</button>
-                    <button class="tool-btn" data-tool="goal">GOAL</button>
-                    <button class="tool-btn" data-tool="enemy">CREATURE</button>
-                </div>
-                <div style="margin-top: 20px; display: flex; gap: 5px;">
-                    <button id="editor-undo">UNDO</button>
-                    <button id="editor-redo">REDO</button>
-                    <button id="editor-clear" style="background: #600;">CLEAR</button>
-                </div>
-                
-                <h3 style="margin-top: 30px; border-bottom: 1px solid #444; padding-bottom: 5px;">GRID & SETTINGS</h3>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
-                    <div>
-                        <span class="slider-title">Cols</span>
-                        <input type="number" id="editor-cols" value="10" min="5" max="50" style="width: 100%; background: #333; color: #fff; border: 1px solid #666;">
-                    </div>
-                    <div>
-                        <span class="slider-title">Rows</span>
-                        <input type="number" id="editor-rows" value="10" min="5" max="50" style="width: 100%; background: #333; color: #fff; border: 1px solid #666;">
-                    </div>
-                    <div>
-                        <span class="slider-title">Enemy Size</span>
-                        <input type="number" id="editor-enemy-size" value="1.0" min="0.1" max="5.0" step="0.1" style="width: 100%; background: #333; color: #fff; border: 1px solid #666;">
-                    </div>
-                    <div>
-                        <span class="slider-title">Enemy Range</span>
-                        <input type="number" id="editor-enemy-range" value="8" min="1" max="50" style="width: 100%; background: #333; color: #fff; border: 1px solid #666;">
-                    </div>
-                    <div>
-                        <span class="slider-title">Enemy Speed</span>
-                        <input type="number" id="editor-enemy-speed" value="1.5" min="0.1" max="10" step="0.1" style="width: 100%; background: #333; color: #fff; border: 1px solid #666;">
-                    </div>
-                    <div>
-                        <span class="slider-title">Enemy HP</span>
-                        <input type="number" id="editor-enemy-health" value="1" min="1" max="100" style="width: 100%; background: #333; color: #fff; border: 1px solid #666;">
-                    </div>
-                </div>
-
-                <h3 style="margin-top: 30px; border-bottom: 1px solid #444; padding-bottom: 5px;">ENVIRONMENT</h3>
-                <div class="slider-container">
-                    <span class="slider-title">Fog Density</span>
-                    <input type="range" id="env-fog" min="0" max="0.3" step="0.001" value="0.06">
-                </div>
-                <div class="slider-container">
-                    <span class="slider-title">Ambient Light</span>
-                    <input type="range" id="env-ambient" min="0" max="3" step="0.01" value="1.1">
-                </div>
-                <div class="slider-container">
-                    <span class="slider-title">Directional Light</span>
-                    <input type="range" id="env-dir" min="0" max="3" step="0.01" value="0.5">
-                </div>
-
-                <h3 style="margin-top: 30px; border-bottom: 1px solid #444; padding-bottom: 5px;">CUSTOM ASSETS</h3>
-                <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
-                    <label>Floor: <input type="file" id="asset-floor" accept="image/*"></label>
-                    <label>Wall: <input type="file" id="asset-wall" accept="image/*"></label>
-                    <label>Ceil: <input type="file" id="asset-ceil" accept="image/*"></label>
-                    <label>Creature GLB: <input type="file" id="asset-creature" accept=".glb,.gltf"></label>
-                    <label>Creature Path: <input type="text" id="creature-model-input" value="creature_1.glb" style="background: #333; color: #0f0; border: 1px solid #0f0; padding: 2px 5px; width: 150px;"></label>
-                </div>
-
-                <button id="editor-apply" style="margin-top: 30px; width: 100%; padding: 15px; background: #080; color: #fff; font-weight: bold; border: none; cursor: pointer; border-radius: 5px;">APPLY & PLAY</button>
-                <button id="editor-close" style="margin-top: 10px; width: 100%; padding: 10px; background: #444; color: #fff; border: none; cursor: pointer; border-radius: 5px;">CLOSE</button>
-            </div>
+      </div>
+      <div class="panel-block">
+        <h3>Lights</h3>
+        <div class="item-list">
+          <div class="item-btn" data-type="pointLight">Fluorescent</div>
+          <div class="item-btn" data-type="spotLight">Spotlight</div>
         </div>
+      </div>
+      <div class="panel-block">
+        <h3>Props</h3>
+        <div class="item-list">
+          <div class="item-btn" data-type="box">Box</div>
+          <div class="item-btn" data-type="chair">Chair/Stool</div>
+          <div class="item-btn" data-type="prop" style="width:100%;">Custom Prop (GLB)</div>
+        </div>
+      </div>
+      <div class="panel-block">
+        <h3>Creatures</h3>
+        <div class="item-list">
+          <div class="item-btn" data-type="creature" style="width:100%;">Spawn Creature</div>
+        </div>
+      </div>
+
+      <div class="panel-block" style="margin-top: 30px;">
+        <h3>Stage Generation</h3>
+        <div class="prop-row">
+          <span>Algorithm</span>
+          <select id="gen-algorithm">
+            <option value="room">Room (Backrooms)</option>
+            <option value="maze">Maze (Nexus)</option>
+          </select>
+        </div>
+        <div class="prop-row">
+          <span>Width (cols)</span>
+          <input type="number" id="room-w" value="10" step="1">
+        </div>
+        <div class="prop-row">
+          <span>Height</span>
+          <input type="number" id="room-h" value="3" step="0.5">
+        </div>
+        <div class="prop-row" id="depth-container">
+          <span>Depth (rows)</span>
+          <input type="number" id="room-d" value="10" step="1">
+        </div>
+        <!-- Maze specific -->
+        <div class="prop-row" id="cell-size-container" style="display:none;">
+          <span>Cell Size</span>
+          <input type="number" id="maze-w" value="10" step="1">
+        </div>
+
+        <button class="btn" id="btn-generate"
+          style="width: 100%; margin-top: 10px; background:var(--accent); color:#000;">Generate Stage</button>
+      </div>
+
+      <div class="panel-block" style="margin-top: 30px;">
+        <h3>Global Scene Config</h3>
+        <div class="prop-row">
+          <span title="Decal left by player">Player Bullet Decal</span>
+          <select id="settings-decal-player" class="asset-dropdown-image">
+            <option value="none">Default (Snapshot_2.PNG)</option>
+          </select>
+        </div>
+        <div class="prop-row">
+          <span title="Decal left on enemies">Enemy Bullet Decal</span>
+          <select id="settings-decal-enemy" class="asset-dropdown-image">
+            <option value="none">Default (Snapshot_3.PNG)</option>
+          </select>
+        </div>
+        <div class="prop-row">
+          <span>Weapon Idle UI</span>
+          <select id="settings-weapon-idle" class="asset-dropdown-image">
+            <option value="none">Default (Snapshot_1.PNG)</option>
+          </select>
+        </div>
+        <div class="prop-row">
+          <span>Weapon Attack UI</span>
+          <select id="settings-weapon-attack" class="asset-dropdown-image">
+            <option value="none">Default (Snapshot.PNG)</option>
+          </select>
+        </div>
+      </div>
     </div>
 
-    <style>
-        .tool-btn { background: #222; color: #aaa; border: 1px solid #555; padding: 8px; cursor: pointer; }
-        .tool-btn.active { background: #0f0; color: #000; border-color: #fff; }
-        #editor-overlay button:hover { opacity: 0.8; }
-        label { font-size: 12px; color: #ccc; }
-    </style>
-
-    <div id="webgl-container"></div>
-    <div id="minimap-container">
-        <canvas id="minimap"></canvas>
+    <!-- Main Viewport -->
+    <div id="canvas-container">
+      <div id="blocker">
+        <h1 style="font-size:3em; margin-bottom: 20px;">EXPLORE MODE</h1>
+        <p>Click to start exploring. Press ESC to return to Editor.</p>
+        <p style="margin-top:10px;">WASD to move, Mouse to look, Click to shoot.</p>
+        <p style="margin-top:10px; font-size:12px; color:#aaa;">Space to auto-explore (Maze mode only)</p>
+      </div>
+      <div id="crosshair"></div>
     </div>
 
-    <script src="proto_config.js"></script>
-    <script src="proto_utils.js"></script>
-    <script src="proto_engine.js"></script>
-    <script src="proto_physics.js"></script>
-    <script src="proto_audio.js"></script>
-    <script src="proto_combat.js"></script>
-    <script src="proto_enemy.js"></script>
-    <script src="proto_maze.js"></script>
-    <script src="proto_input.js"></script>
-    <script src="proto_editor.js"></script>
-    <script src="proto_main.js"></script>
+    <!-- Right Sidebar: Properties -->
+    <div class="sidebar" id="properties-panel">
+      <div class="panel-block">
+        <h3>Global Audio Options</h3>
+        <div class="prop-row">
+          <span>Master Vol</span>
+          <input type="range" id="vol-master" min="0" max="1" step="0.01" value="0.5">
+        </div>
+        <div class="prop-row">
+          <span>Player Gunshot</span>
+          <select id="audio-gunshot" style="width:60px;" class="asset-dropdown-audio">
+            <option value="none">Dev</option>
+          </select>
+          <input type="range" id="vol-gunshot" min="0" max="1" step="0.01" value="1.0" style="width:60px;">
+        </div>
+        <div class="prop-row">
+          <span>Player Damage</span>
+          <select id="audio-player-damage" style="width:60px;" class="asset-dropdown-audio">
+            <option value="none">Dev</option>
+          </select>
+          <input type="range" id="vol-player-damage" min="0" max="1" step="0.01" value="1.0" style="width:60px;">
+        </div>
+        <div class="prop-row">
+          <span>Enemy Voice</span>
+          <select id="audio-enemy-voice" style="width:60px;" class="asset-dropdown-audio">
+            <option value="none">Dev</option>
+          </select>
+          <input type="range" id="vol-enemy-voice" min="0" max="1" step="0.01" value="1.0" style="width:60px;">
+        </div>
+        <div class="prop-row">
+          <span>Enemy Death</span>
+          <select id="audio-enemy-death" style="width:60px;" class="asset-dropdown-audio">
+            <option value="none">Dev</option>
+          </select>
+        </div>
+        <div class="prop-row">
+          <span>Footsteps</span>
+          <select id="audio-footsteps" style="width:60px;" class="asset-dropdown-audio">
+            <option value="none">Default(アスファルトの上を歩く1)</option>
+          </select>
+          <input type="range" id="vol-footsteps" min="0" max="3" step="0.01" value="2.0" style="width:60px;">
+        </div>
+        <div class="prop-row">
+          <span>AI Enabled</span>
+          <input type="checkbox" id="ai-enabled" checked style="width:auto;">
+        </div>
+      </div>
+
+      <div class="panel-block">
+        <h3>Selected Object</h3>
+        <div id="no-selection">No object selected</div>
+
+        <div id="selection-props" style="display: none;">
+          <div style="margin-bottom: 10px; font-weight: bold; color:var(--accent);" id="prop-type">Type: Wall</div>
+          <hr style="border:0; border-bottom: 1px solid #444; margin-bottom:10px;">
+
+          <h4>Transform</h4>
+          <div class="prop-row">
+            <span>P (X,Y,Z)</span>
+            <div style="display:flex; gap:2px;">
+              <input type="number" id="prop-px" step="0.1" style="width:45px;">
+              <input type="number" id="prop-py" step="0.1" style="width:45px;">
+              <input type="number" id="prop-pz" step="0.1" style="width:45px;">
+            </div>
+          </div>
+          <div class="prop-row" id="scale-controls">
+            <span>S (X,Y,Z)</span>
+            <div style="display:flex; gap:2px;">
+              <input type="number" id="prop-sx" step="0.1" style="width:45px;">
+              <input type="number" id="prop-sy" step="0.1" style="width:45px;">
+              <input type="number" id="prop-sz" step="0.1" style="width:45px;">
+            </div>
+          </div>
+
+          <div id="material-props" style="margin-top:10px;">
+            <h4>Material</h4>
+            <div class="prop-row">
+              <span>Color</span>
+              <input type="color" id="prop-color" value="#ffffff">
+            </div>
+            <div class="prop-row">
+              <span>Texture</span>
+              <select id="prop-texture" class="asset-dropdown-image">
+                <option value="none">None</option>
+                <option value="wallpaper">Yellow Wallpaper</option>
+                <option value="carpet">Damp Carpet</option>
+                <option value="ceiling">Ceiling Tiles</option>
+                <option value="concrete">Concrete</option>
+                <option value="nexus-wall">Nexus Wall</option>
+                <option value="nexus-floor">Nexus Floor</option>
+              </select>
+            </div>
+            <div class="prop-row">
+              <span>UV Repeat</span>
+              <input type="number" id="prop-uv" value="1" step="0.5">
+            </div>
+          </div>
+
+          <div id="light-props" style="display:none; margin-top:10px;">
+            <h4>Light</h4>
+            <div class="prop-row">
+              <span>Intensity</span>
+              <input type="number" id="prop-intensity" step="0.5">
+            </div>
+            <div class="prop-row">
+              <span>Distance</span>
+              <input type="number" id="prop-distance" step="1">
+            </div>
+          </div>
+
+          <div id="creature-props" style="display:none; margin-top:10px;">
+            <h4>Creature Logic</h4>
+            <div class="prop-row">
+              <span>Model (GLB)</span>
+              <select id="prop-creature-model" class="asset-dropdown-model">
+                <option value="default">Default Cube</option>
+              </select>
+            </div>
+            <div class="prop-row">
+              <span>HP</span>
+              <input type="number" id="prop-creature-hp" value="3" step="1">
+            </div>
+            <div class="prop-row">
+              <span>Speed</span>
+              <input type="number" id="prop-creature-speed" value="1.5" step="0.1">
+            </div>
+            <div class="prop-row">
+              <span>AI State</span>
+              <select id="prop-creature-state">
+                <option value="WANDER">Wander</option>
+                <option value="IDLE">Idle</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="custom-prop-props" style="display:none; margin-top:10px;">
+            <h4>Custom Prop Logic</h4>
+            <div class="prop-row">
+              <span>Model (GLB)</span>
+              <select id="prop-custom-model" class="asset-dropdown-model">
+                <option value="default">Select Model</option>
+              </select>
+            </div>
+          </div>
+
+          <button class="btn" id="btn-delete" style="background:#833; width:100%; margin-top:20px;">Delete
+            Object</button>
+          <!-- Transform Tools -->
+          <div style="margin-top: 15px; display: flex; gap: 5px;">
+            <button class="btn transform-btn active" data-mode="translate"
+              style="flex:1; padding: 5px 0; font-size:12px;">Move</button>
+            <button class="btn transform-btn" data-mode="rotate"
+              style="flex:1; padding: 5px 0; font-size:12px;">Rotate</button>
+            <button class="btn transform-btn" data-mode="scale"
+              style="flex:1; padding: 5px 0; font-size:12px;">Scale</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Asset Manager Modal -->
+  <div id="asset-modal">
+    <div id="asset-modal-close">X</div>
+    <h2 style="color:var(--accent); margin-bottom:15px; border-bottom:1px solid #555; padding-bottom:10px;">Asset
+      Manager (IndexedDB)</h2>
+
+    <div class="asset-categories">
+      <div class="asset-tab active" data-tab="image">Images (Textures/UI)</div>
+      <div class="asset-tab" data-tab="audio">Audio (SFX/Voices)</div>
+      <div class="asset-tab" data-tab="model">Models (GLB)</div>
+    </div>
+
+    <div id="asset-list">
+      <!-- Asset items injected here -->
+    </div>
+
+    <div id="asset-upload-area">
+      <p>Drag & Drop files here, or <label for="asset-file-input"
+          style="color:var(--accent);cursor:pointer;text-decoration:underline;">Click to Browse</label></p>
+      <input type="file" id="asset-file-input" style="display:none;" multiple
+        accept=".jpg,.png,.jpeg,.mp3,.wav,.glb,.gltf">
+      <div style="margin-top:15px; display:flex; gap:10px; justify-content:center;">
+        <input type="text" id="asset-upload-name" placeholder="Asset Name (Optional)"
+          style="padding:5px; background:#222; color:white; border:1px solid #555;">
+        <select id="asset-upload-type" style="padding:5px; background:#222; color:white; border:1px solid #555;">
+          <option value="image">Image (Texture/Decal)</option>
+          <option value="audio">Audio</option>
+          <option value="model">GLB Model</option>
+        </select>
+        <button class="btn" id="btn-upload-asset">Save to DB</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./app.js"></script>
 </body>
 
 </html>
