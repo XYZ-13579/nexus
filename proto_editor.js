@@ -13,12 +13,15 @@ let historyIndex = -1;
 let dragStart = null;
 let dragEnd = null;
 
+let hoveredEdge = null; // { i, j, idx }
+
 function initEditor() {
     // Sync UI with current globals
     document.getElementById('editor-cols').value = cols;
     document.getElementById('editor-rows').value = rows;
     document.getElementById('editor-enemy-size').value = enemySize;
     document.getElementById('editor-enemy-health').value = defaultEnemyHealth;
+    document.getElementById('env-enemy-pass-doors').checked = envParams.enemyCanPassDoors;
 
     // Use current grid if it exists and matches dimensions
     if (customMapData.cells && customMapData.cells.length === cols * rows) {
@@ -142,7 +145,7 @@ function drawEditor() {
 
     // Draw Grid Cells
     ectx.beginPath();
-    ectx.strokeStyle = '#222';
+    ectx.strokeStyle = '#111';
     ectx.lineWidth = 1;
     for (let j = 0; j <= rows; j++) {
         ectx.moveTo(0, j * cellSize);
@@ -161,35 +164,46 @@ function drawEditor() {
     if (customMapData.spawn) {
         ectx.fillStyle = '#00ffff';
         ectx.beginPath(); ectx.arc(centerX(customMapData.spawn.i), centerY(customMapData.spawn.j), cellSize/4, 0, Math.PI*2); ectx.fill();
+        ectx.strokeStyle = '#fff'; ectx.lineWidth = 2; ectx.stroke();
     }
     if (customMapData.goal) {
         ectx.fillStyle = '#ff00ff';
         ectx.beginPath(); ectx.arc(centerX(customMapData.goal.i), centerY(customMapData.goal.j), cellSize/4, 0, Math.PI*2); ectx.fill();
+        ectx.strokeStyle = '#fff'; ectx.lineWidth = 2; ectx.stroke();
     }
     customMapData.creatures.forEach(en => {
         ectx.fillStyle = '#ff0000';
         ectx.beginPath(); ectx.arc(centerX(en.i), centerY(en.j), cellSize/6, 0, Math.PI*2); ectx.fill();
+        ectx.strokeStyle = '#fff'; ectx.lineWidth = 1; ectx.stroke();
     });
 
     // Draw Walls
     for (const cell of editGrid) {
-        const x = cell.i * cellSize;
-        const y = cell.j * cellSize;
-        const wallColors = [null, '#fff', '#aa0', '#33f'];
-        const lineWidths = [0, 4, 6, 6];
+        drawCellWalls(cell, cellSize);
+    }
 
-        cell.walls.forEach((type, idx) => {
-            if (type === 0) return;
-            ectx.strokeStyle = wallColors[type];
-            ectx.lineWidth = lineWidths[type];
-            ectx.lineCap = 'round';
-            ectx.beginPath();
-            if (idx === 0) { ectx.moveTo(x, y); ectx.lineTo(x + cellSize, y); }
-            if (idx === 1) { ectx.moveTo(x + cellSize, y); ectx.lineTo(x + cellSize, y + cellSize); }
-            if (idx === 2) { ectx.moveTo(x + cellSize, y + cellSize); ectx.lineTo(x, y + cellSize); }
-            if (idx === 3) { ectx.moveTo(x, y + cellSize); ectx.lineTo(x, y); }
-            ectx.stroke();
-        });
+    // Hover Highlight & Preview
+    if (hoveredEdge && !dragStart) {
+        const { i, j, idx } = hoveredEdge;
+        const x = i * cellSize;
+        const y = j * cellSize;
+        
+        // Ghost Preview
+        const typeMap = { wall: 1, door: 2, window: 3, eraser: 0 };
+        const type = typeMap[editorTool];
+        if (type !== undefined) {
+            ectx.globalAlpha = 0.5;
+            drawWallSegment(x, y, cellSize, idx, type);
+            ectx.globalAlpha = 1.0;
+        }
+
+        // Selection Glow
+        ectx.strokeStyle = '#0f0';
+        ectx.lineWidth = 2;
+        ectx.shadowBlur = 10;
+        ectx.shadowColor = '#0f0';
+        drawWallLine(x, y, cellSize, idx);
+        ectx.shadowBlur = 0;
     }
 
     // Drag Preview
@@ -206,6 +220,33 @@ function drawEditor() {
         ectx.fillStyle = bg;
         ectx.fillRect(i1 * cellSize, j1 * cellSize, (i2 - i1 + 1) * cellSize, (j2 - j1 + 1) * cellSize);
     }
+}
+
+function drawCellWalls(cell, cellSize) {
+    const x = cell.i * cellSize;
+    const y = cell.j * cellSize;
+    cell.walls.forEach((type, idx) => {
+        if (type === 0) return;
+        drawWallSegment(x, y, cellSize, idx, type);
+    });
+}
+
+function drawWallSegment(x, y, cellSize, idx, type) {
+    const wallColors = [null, '#fff', '#ff0', '#0ff'];
+    const lineWidths = [0, 4, 8, 8];
+    ectx.strokeStyle = wallColors[type];
+    ectx.lineWidth = lineWidths[type];
+    ectx.lineCap = 'butt';
+    drawWallLine(x, y, cellSize, idx);
+}
+
+function drawWallLine(x, y, cellSize, idx) {
+    ectx.beginPath();
+    if (idx === 0) { ectx.moveTo(x, y); ectx.lineTo(x + cellSize, y); }
+    if (idx === 1) { ectx.moveTo(x + cellSize, y); ectx.lineTo(x + cellSize, y + cellSize); }
+    if (idx === 2) { ectx.moveTo(x + cellSize, y + cellSize); ectx.lineTo(x, y + cellSize); }
+    if (idx === 3) { ectx.moveTo(x, y + cellSize); ectx.lineTo(x, y); }
+    ectx.stroke();
 }
 
 editorCanvas.addEventListener('mousedown', (e) => {
@@ -226,17 +267,42 @@ editorCanvas.addEventListener('mousedown', (e) => {
 });
 
 editorCanvas.addEventListener('mousemove', (e) => {
+    const rect = editorCanvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left);
+    const my = (e.clientY - rect.top);
+    const cellSize = editorCanvas.width / Math.max(cols, rows);
+    
     if (dragStart) {
-        const rect = editorCanvas.getBoundingClientRect();
-        const mx = (e.clientX - rect.left);
-        const my = (e.clientY - rect.top);
-        const cellSize = editorCanvas.width / Math.max(cols, rows);
         const ni = Math.max(0, Math.min(cols - 1, Math.floor(mx / cellSize)));
         const nj = Math.max(0, Math.min(rows - 1, Math.floor(my / cellSize)));
         if (ni !== dragEnd.i || nj !== dragEnd.j) {
             dragEnd = { i: ni, j: nj };
             drawEditor();
         }
+    } else {
+        const i = Math.floor(mx / cellSize);
+        const j = Math.floor(my / cellSize);
+        if (i >= 0 && i < cols && j >= 0 && j < rows) {
+            const relX = mx % cellSize;
+            const relY = my % cellSize;
+            
+            // Calculate closest edge
+            const dists = [relY, cellSize - relX, cellSize - relY, relX];
+            let minDist = Infinity;
+            let bestIdx = 0;
+            dists.forEach((d, idx) => {
+                if (d < minDist) { minDist = d; bestIdx = idx; }
+            });
+            
+            if (minDist < cellSize * 0.4) {
+                hoveredEdge = { i, j, idx: bestIdx };
+            } else {
+                hoveredEdge = null;
+            }
+        } else {
+            hoveredEdge = null;
+        }
+        drawEditor();
     }
 });
 
@@ -313,14 +379,13 @@ function setSingleWall(i, j, wallIdx, type) {
 }
 
 function applyTool(i, j, relX, relY, cellSize) {
-    const margin = cellSize * 0.25;
     let changed = false;
     if (['wall', 'door', 'window', 'eraser'].includes(editorTool)) {
-        let type = { wall: 1, door: 2, window: 3, eraser: 0 }[editorTool];
-        if (relY < margin) { toggleWall(i, j, 0, type); changed = true; }
-        else if (relX > cellSize - margin) { toggleWall(i, j, 1, type); changed = true; }
-        else if (relY > cellSize - margin) { toggleWall(i, j, 2, type); changed = true; }
-        else if (relX < margin) { toggleWall(i, j, 3, type); changed = true; }
+        if (hoveredEdge) {
+            const typeMap = { wall: 1, door: 2, window: 3, eraser: 0 };
+            toggleWall(hoveredEdge.i, hoveredEdge.j, hoveredEdge.idx, typeMap[editorTool]);
+            changed = true;
+        }
     } else {
         if (editorTool === 'player') { customMapData.spawn = { i, j }; changed = true; }
         if (editorTool === 'goal') { customMapData.goal = { i, j }; changed = true; }
@@ -346,6 +411,10 @@ document.querySelectorAll('.tool-btn').forEach(btn => {
 document.getElementById('editor-undo').onclick = undo;
 document.getElementById('editor-redo').onclick = redo;
 document.getElementById('editor-clear').onclick = () => { editGrid.forEach(c => c.walls = [0,0,0,0]); customMapData.creatures = []; saveHistory(); drawEditor(); };
+
+document.getElementById('env-enemy-pass-doors').addEventListener('change', (e) => {
+    envParams.enemyCanPassDoors = e.target.checked;
+});
 
 document.getElementById('asset-floor').onchange = (e) => loadTex(e, 'floor');
 document.getElementById('asset-wall').onchange = (e) => loadTex(e, 'wall');
