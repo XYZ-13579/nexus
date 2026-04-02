@@ -42,7 +42,8 @@ let envParams = {
     fogDensity: 0.06,
     ambientIntensity: 1.1,
     dirIntensity: 0.5,
-    fogColor: 0x222222
+    fogColor: 0x222222,
+    enemyCanPassDoors: false
 };
 
 let creatureModelPath = 'creature_1.glb';
