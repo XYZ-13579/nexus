@@ -1,7 +1,7 @@
 // --- Audio Setup & Volume Management ---
 
 const sounds = {
-    footsteps: new Audio('../backrooms/アスファルトの上を歩く1.mp3'),
+    footsteps: new Audio('アスファルトの上を歩く1.mp3'),
     creatureDamage: new Audio('ダメージ①.mp3'),
     playerDamage: new Audio('打撃8.mp3'),
     zombieVoice: new Audio('ゾンビの声1.mp3'),
