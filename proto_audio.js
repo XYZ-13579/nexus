@@ -1,12 +1,13 @@
 // --- Audio Setup & Volume Management ---
 
 const sounds = {
-    footsteps: new Audio('アスファルトの上を歩く1.mp3'),
+    footsteps: new Audio('../backrooms/アスファルトの上を歩く1.mp3'),
     creatureDamage: new Audio('ダメージ①.mp3'),
     playerDamage: new Audio('打撃8.mp3'),
     zombieVoice: new Audio('ゾンビの声1.mp3'),
     zombieDeath: new Audio('ゾンビの断末魔.mp3'),
-    gunshot: new Audio('se_gun_fire09.mp3')
+    gunshot: new Audio('se_gun_fire09.mp3'),
+    doorOpen: new Audio('ドアを開ける3.mp3')
 };
 sounds.footsteps.loop = true;
 sounds.zombieVoice.loop = true;
@@ -21,6 +22,7 @@ const volumeSettings = {
 let audioCtx;
 let footstepGain;
 let audioInitialized = false;
+let currentIdleSound = 'ゾンビの声1.mp3'; // Default idle sound
 
 const initAudio = () => {
     if (audioInitialized) return;
@@ -42,7 +44,7 @@ const initAudio = () => {
     }).catch((err) => { console.error("Footsteps initial play error:", err); });
 
     // Unlock other sounds
-    const unlockSounds = ['creatureDamage', 'playerDamage', 'zombieVoice', 'zombieDeath', 'gunshot'];
+    const unlockSounds = ['creatureDamage', 'playerDamage', 'zombieVoice', 'zombieDeath', 'gunshot', 'doorOpen'];
     unlockSounds.forEach(name => {
         sounds[name].play().then(() => {
             if (name !== 'zombieVoice') {
@@ -86,3 +88,18 @@ document.getElementById('vol-footsteps').addEventListener('input', (e) => {
 document.getElementById('vol-sfx').addEventListener('input', (e) => {
     volumeSettings.sfx = parseFloat(e.target.value);
 });
+
+// Function to set idle sound dynamically
+function setIdleSound(audioSrc) {
+    if (currentIdleSound === audioSrc) return; // No change needed
+    const wasPlaying = !sounds.zombieVoice.paused;
+    const currentVolume = sounds.zombieVoice.volume;
+    sounds.zombieVoice.pause();
+    sounds.zombieVoice.src = audioSrc;
+    sounds.zombieVoice.loop = true;
+    sounds.zombieVoice.volume = currentVolume;
+    currentIdleSound = audioSrc;
+    if (wasPlaying) {
+        sounds.zombieVoice.play().catch(() => {});
+    }
+}
