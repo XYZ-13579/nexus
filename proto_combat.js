@@ -1,4 +1,14 @@
 // --- Combat, Health, & UI Effects ---
+let enableBloodEffect = true;
+
+document.addEventListener('DOMContentLoaded', () => {
+    const bloodToggle = document.getElementById('env-blood');
+    if (bloodToggle) {
+        enableBloodEffect = bloodToggle.checked;
+        bloodToggle.addEventListener('change', (e) => enableBloodEffect = e.target.checked);
+    }
+});
+
 
 function triggerAttackEffect() {
     if (sounds.gunshot) {
@@ -25,7 +35,36 @@ function handleAttack() {
         const isWall = obj.userData && obj.userData.isWall;
         const isStatic = obj.userData && obj.userData.isStatic;
 
-        if (isEnemy) {
+        // Walk up the parent chain to find if this is a dynamic prop
+        let propNode = obj;
+        let propBody = null;
+        while (propNode) {
+            if (propNode.userData && propNode.userData.isDynamic && propNode.userData.rigidBody) {
+                propBody = propNode.userData.rigidBody;
+                break;
+            }
+            propNode = propNode.parent;
+        }
+
+        if (propBody) {
+            // Apply impulse in the direction the player is shooting
+            const dir = new THREE.Vector3();
+            camera.getWorldDirection(dir);
+            const impulseStrength = 60;
+            propBody.wakeUp();
+            propBody.applyImpulse(
+                {
+                    x: dir.x * impulseStrength,
+                    y: dir.y * impulseStrength + 5,
+                    z: dir.z * impulseStrength
+                },
+                true
+            );
+            if (intersects[i].face) {
+                createBulletMark(intersects[i].point, intersects[i].face.normal, obj, false);
+            }
+            break;
+        } else if (isEnemy) {
             const enemy = enemies.find(en => en.id === obj.userData.enemyId);
             if (enemy) {
                 createBloodEffect(intersects[i].point);
@@ -59,6 +98,7 @@ function updateHealthHud() {
 }
 
 function flashDamageOverlay() {
+    if (!enableBloodEffect) return;
     const overlay = document.getElementById('damage-overlay');
     if (overlay) {
         overlay.style.opacity = '1';
@@ -88,6 +128,7 @@ function retryGame() {
 }
 
 function createBloodEffect(pos) {
+    if (!enableBloodEffect) return;
     const particleCount = 20;
     const geometry = new THREE.BufferGeometry();
     const positions = new Float32Array(particleCount * 3);
@@ -120,7 +161,7 @@ function createBulletMark(point, faceNormal, hitObject, isCreature) {
     const tex = isCreature ? bulletMarkTexCreature : bulletMarkTexWall;
     if (!tex) return;
 
-    const size = 1.5;
+    const size = 1.0;
     const geometry = new THREE.PlaneGeometry(size, size);
     const material = new THREE.MeshBasicMaterial({
         map: tex,
